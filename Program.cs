@@ -15,10 +15,42 @@ namespace cosmosdb_lab
         {
             using (DocumentClient client = new DocumentClient(_endpointUri, _primaryKey))
             {
-                Database targetDatabase = new Database { Id = "EntertainmentDatabase" };
-                targetDatabase = await client.CreateDatabaseIfNotExistsAsync(targetDatabase);
-
-                await Console.Out.WriteLineAsync($"Database Self-Link:\t{targetDatabase.SelfLink}");
+                await client.OpenAsync();
+                Uri databaseLink = UriFactory.CreateDatabaseUri("EntertainmentDatabase");
+                IndexingPolicy indexingPolicy = new IndexingPolicy
+                {
+                    IndexingMode = IndexingMode.Consistent,
+                    Automatic = true,
+                    IncludedPaths = new Collection<IncludedPath>
+                    {
+                        new IncludedPath
+                        {
+                            Path = "/*",
+                            Indexes = new Collection<Index>
+                            {
+                                new RangeIndex(DataType.Number, -1),
+                                new RangeIndex(DataType.String, -1)
+                            }
+                        }
+                    }
+                };
+                
+                PartitionKeyDefinition partitionKeyDefinition = new PartitionKeyDefinition
+                {
+                    Paths = new Collection<string> { "/type" }
+                };
+                DocumentCollection customCollection = new DocumentCollection
+                {
+                    Id = "CustomCollection",
+                    PartitionKey = partitionKeyDefinition,
+                    IndexingPolicy = indexingPolicy
+                };
+                RequestOptions requestOptions = new RequestOptions
+                {
+                    OfferThroughput = 10000
+                };
+                customCollection = await client.CreateDocumentCollectionIfNotExistsAsync(databaseLink, customCollection, requestOptions);
+                await Console.Out.WriteLineAsync($"Custom Collection Self-Link:\t{customCollection.SelfLink}");
             }
         }
     }
