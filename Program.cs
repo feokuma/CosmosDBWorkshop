@@ -16,41 +16,18 @@ namespace cosmosdb_lab
             using (DocumentClient client = new DocumentClient(_endpointUri, _primaryKey))
             {
                 await client.OpenAsync();
-                Uri databaseLink = UriFactory.CreateDatabaseUri("EntertainmentDatabase");
-                IndexingPolicy indexingPolicy = new IndexingPolicy
+                Uri collectionLink = UriFactory.CreateDocumentCollectionUri("EntertainmentDatabase", "CustomCollection");
+                var foodInteractions = new Bogus.Faker<PurchaseFoodOrBeverage>()
+                    .RuleFor(i => i.type, (fake) => nameof(PurchaseFoodOrBeverage))
+                    .RuleFor(i => i.unitPrice, (fake) => Math.Round(fake.Random.Decimal(1.99m, 15.99m), 2))
+                    .RuleFor(i => i.quantity, (fake) => fake.Random.Number(1, 5))
+                    .RuleFor(i => i.totalPrice, (fake, user) => Math.Round(user.unitPrice * user.quantity, 2))
+                    .Generate(500);
+                foreach (var interaction in foodInteractions)
                 {
-                    IndexingMode = IndexingMode.Consistent,
-                    Automatic = true,
-                    IncludedPaths = new Collection<IncludedPath>
-                    {
-                        new IncludedPath
-                        {
-                            Path = "/*",
-                            Indexes = new Collection<Index>
-                            {
-                                new RangeIndex(DataType.Number, -1),
-                                new RangeIndex(DataType.String, -1)
-                            }
-                        }
-                    }
-                };
-                
-                PartitionKeyDefinition partitionKeyDefinition = new PartitionKeyDefinition
-                {
-                    Paths = new Collection<string> { "/type" }
-                };
-                DocumentCollection customCollection = new DocumentCollection
-                {
-                    Id = "CustomCollection",
-                    PartitionKey = partitionKeyDefinition,
-                    IndexingPolicy = indexingPolicy
-                };
-                RequestOptions requestOptions = new RequestOptions
-                {
-                    OfferThroughput = 10000
-                };
-                customCollection = await client.CreateDocumentCollectionIfNotExistsAsync(databaseLink, customCollection, requestOptions);
-                await Console.Out.WriteLineAsync($"Custom Collection Self-Link:\t{customCollection.SelfLink}");
+                    ResourceResponse<Document> result = await client.CreateDocumentAsync(collectionLink, interaction);
+                    await Console.Out.WriteLineAsync($"Document #{foodInteractions.IndexOf(interaction):000} Created\t{result.Resource.Id}");
+                }
             }
         }
     }
